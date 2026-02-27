@@ -1,31 +1,30 @@
 package main
 
 import (
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
 
 func main() {
-	fmt.Println("Start service-a")
+	log.Println("Start service-a")
 
 	// Dial the local Consul Connect sidecar upstream port.
 	// This is plain HTTP — no TLS code here at all.
 	// The sidecar intercepts this, wraps it in mTLS, and forwards
 	// it to service-b's sidecar on the other side.
-	for i := 0; i < 10; i++ {
-		resp, err := http.Get("http://localhost:9191")
+	for {
+		resp, err := http.Get("http://localhost:9002")
 		if err != nil {
-			fmt.Println("error request to service-b", err)
-			time.Sleep(time.Second * 2)
-			continue
+			log.Println("ERROR! service-a request to service-b", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			log.Println("SUCCESS! service-b called:", string(body))
+
+			resp.Body.Close()
 		}
-		defer resp.Body.Close()
 
-		body, _ := io.ReadAll(resp.Body)
-		fmt.Println("\nSUCCESS!\nservice-b called:", string(body))
-
-		break
+		time.Sleep(time.Second * 1)
 	}
 }

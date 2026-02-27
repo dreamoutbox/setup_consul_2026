@@ -90,3 +90,4 @@ services:
     depends_on:
       consul:
         condition: service_healthy
+        
