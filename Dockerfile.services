@@ -1,0 +1,23 @@
+# Build stage for service-a
+FROM golang:1.26-alpine AS build
+WORKDIR /build
+
+COPY ./service-a/ /build/a/
+COPY ./service-b/ /build/b/
+
+RUN cd /build/a && CGO_ENABLED=0 GOOS=linux go build -o /build/service-a
+RUN cd /build/b && CGO_ENABLED=0 GOOS=linux go build -o /build/service-b
+
+# Runtime stage for service-a
+FROM alpine:latest AS service-a
+RUN apk --no-cache add ca-certificates
+WORKDIR /app
+COPY --from=build /build/service-a .
+CMD ["./service-a"]
+
+# Runtime stage for service-b
+FROM alpine:latest AS service-b
+RUN apk --no-cache add ca-certificates
+WORKDIR /app
+COPY --from=build /build/service-b .
+CMD ["./service-b"]

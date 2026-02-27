@@ -1,0 +1,92 @@
+networks:
+  mesh:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+
+services:
+  consul:
+    image: hashicorp/consul:1.22
+    container_name: consul
+    command: consul agent -dev -client=0.0.0.0 -log-level=warn -ui -config-dir=/consul/config
+    ports:
+      - "8500:8500"
+    volumes:
+      - ./consul:/consul/config   # loads service-a.json and service-b.json on startup
+    networks:
+      mesh:
+        ipv4_address: 10.0.0.2
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  service-a-sidecar:
+    container_name: service-a-sidecar
+    image: hashicorp/consul:1.22
+    network_mode: "service:service-a"
+    environment:
+      CONSUL_HTTP_ADDR: "10.0.0.2:8500"
+    command: >
+      sh -c "
+        echo '[sidecar-a] waiting for Consul to load service-a registration...';
+
+        until wget -qO- http://10.0.0.2:8500/v1/agent/services 2>/dev/null | grep -q 'service-a-sidecar-proxy'; do
+          sleep 1;
+        done;
+
+        echo '[sidecar-a] starting proxy';
+        consul connect proxy -sidecar-for service-a -log-level warn
+      "
+    depends_on:
+      consul:
+        condition: service_healthy
+
+  service-b-sidecar:
+    container_name: service-b-sidecar
+    image: hashicorp/consul:1.22
+    network_mode: "service:service-b"
+    environment:
+      CONSUL_HTTP_ADDR: "10.0.0.2:8500"
+    # service-b is registered via consul/service-b.json loaded at consul startup —
+    # no need to wait for the Go app to call the API. Start immediately.
+    command: >
+      sh -c "
+        echo '[sidecar-b] waiting for Consul to load service-b registration...';
+
+        until wget -qO- http://10.0.0.2:8500/v1/agent/services 2>/dev/null | grep -q 'service-b-sidecar-proxy'; do
+          sleep 1;
+        done;
+
+        echo '[sidecar-b] starting proxy';
+        consul connect proxy -sidecar-for service-b -log-level warn
+      "
+    depends_on:
+      consul:
+        condition: service_healthy
+
+  service-a:
+    container_name: service-a
+    build:
+      dockerfile: Dockerfile.services
+      target: service-a
+    # command: go run main.go
+    networks:
+      - mesh
+    depends_on:
+      consul:
+        condition: service_healthy
+
+  service-b:
+    container_name: service-b
+    build:
+      dockerfile: Dockerfile.services
+      target: service-b
+    # command: go run main.go
+    networks:
+      - mesh
+    depends_on:
+      consul:
+        condition: service_healthy
