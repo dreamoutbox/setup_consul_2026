@@ -9,14 +9,13 @@ services:
   consul1:
     image: hashicorp/consul:1.22
     container_name: consul1
-    command: consul agent -server -node=server1 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -ui -config-dir=/consul/config -retry-join=consul2 -retry-join=consul3 -retry-join=consul4 -retry-join=consul5
+    command: consul agent -server -node=server1 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -ui -config-dir=/consul/config -retry-join=consul2 -retry-join=consul3 -retry-join=consul4 -retry-join=consul5
     ports:
       - "8500:8500"
     volumes:
       - ./consul:/consul/config
     networks:
-      mesh:
-        ipv4_address: 10.0.0.2
+      mesh: # ipv4_address: 10.0.0.2
     healthcheck:
       test: [ "CMD", "consul", "members" ]
       interval: 2s
@@ -26,12 +25,11 @@ services:
   consul2:
     image: hashicorp/consul:1.22
     container_name: consul2
-    command: consul agent -server -node=server2 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul3 -retry-join=consul4 -retry-join=consul5
+    command: consul agent -server -node=server2 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul3 -retry-join=consul4 -retry-join=consul5
     volumes:
       - ./consul:/consul/config
     networks:
-      mesh:
-        ipv4_address: 10.0.0.3
+      mesh: # ipv4_address: 10.0.0.3
     healthcheck:
       test: [ "CMD", "consul", "members" ]
       interval: 2s
@@ -41,12 +39,11 @@ services:
   consul3:
     image: hashicorp/consul:1.22
     container_name: consul3
-    command: consul agent -server -node=server3 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul4 -retry-join=consul5
+    command: consul agent -server -node=server3 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul4 -retry-join=consul5
     volumes:
       - ./consul:/consul/config
     networks:
-      mesh:
-        ipv4_address: 10.0.0.4
+      mesh: # ipv4_address: 10.0.0.4
     healthcheck:
       test: [ "CMD", "consul", "members" ]
       interval: 2s
@@ -56,12 +53,11 @@ services:
   consul4:
     image: hashicorp/consul:1.22
     container_name: consul4
-    command: consul agent -server -node=server4 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul3 -retry-join=consul5
+    command: consul agent -server -node=server4 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul3 -retry-join=consul5
     volumes:
       - ./consul:/consul/config
     networks:
-      mesh:
-        ipv4_address: 10.0.0.5
+      mesh: # ipv4_address: 10.0.0.5
     healthcheck:
       test: [ "CMD", "consul", "members" ]
       interval: 2s
@@ -71,12 +67,11 @@ services:
   consul5:
     image: hashicorp/consul:1.22
     container_name: consul5
-    command: consul agent -server -node=server5 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul3 -retry-join=consul4
+    command: consul agent -server -node=server5 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul3 -retry-join=consul4
     volumes:
       - ./consul:/consul/config
     networks:
-      mesh:
-        ipv4_address: 10.0.0.6
+      mesh: # ipv4_address: 10.0.0.6
     healthcheck:
       test: [ "CMD", "consul", "members" ]
       interval: 2s
