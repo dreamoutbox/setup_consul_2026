@@ -157,3 +157,14 @@ services:
         condition: service_healthy
       consul5:
         condition: service_healthy
+
+  netshoot:
+    build:
+      context: .
+      dockerfile: Dockerfile.netshoot
+    container_name: netshoot
+    command: sleep infinity
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - mesh

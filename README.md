@@ -60,3 +60,25 @@ See service-a still able to call service-b
 docker logs service-a-sidecar
 docker logs service-a
 ```
+
+## Inspect traffic
+
+Inspect network traffic between service-a and service-b. to see if it really encrypted
+
+### Inspect service-a sidecar traffic
+
+```bash
+docker compose exec service-a tcpdump -i eth0 -A
+```
+
+### Capture traffic on eth0
+
+```bash
+docker compose exec netshoot tcpdump -i eth0 -A
+```
+
+### See network statistics and open ports
+
+```bash
+docker compose exec netshoot netstat -tulpn
+```

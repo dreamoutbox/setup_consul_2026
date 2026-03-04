@@ -10,14 +10,14 @@ RUN cd /build/b && CGO_ENABLED=0 GOOS=linux go build -o /build/service-b
 
 # Runtime stage for service-a
 FROM alpine:latest AS service-a
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tcpdump
 WORKDIR /app
 COPY --from=build /build/service-a .
 CMD ["./service-a"]
 
 # Runtime stage for service-b
 FROM alpine:latest AS service-b
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates tcpdump
 WORKDIR /app
 COPY --from=build /build/service-b .
 CMD ["./service-b"]

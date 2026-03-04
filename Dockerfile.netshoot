@@ -1,0 +1,5 @@
+FROM nicolaka/netshoot
+
+RUN apk add --no-cache python3 py3-scapy || apk add --no-cache python3 scapy
+COPY arpspoof.py /usr/local/bin/arpspoof
+RUN chmod +x /usr/local/bin/arpspoof
