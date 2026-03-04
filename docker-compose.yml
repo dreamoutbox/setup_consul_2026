@@ -9,7 +9,7 @@ services:
   consul1:
     image: hashicorp/consul:1.22
     container_name: consul1
-    command: consul agent -server -node=server1 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -ui -config-dir=/consul/config -retry-join=consul2 -retry-join=consul3
+    command: consul agent -server -node=server1 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -ui -config-dir=/consul/config -retry-join=consul2 -retry-join=consul3 -retry-join=consul4 -retry-join=consul5
     ports:
       - "8500:8500"
     volumes:
@@ -26,7 +26,7 @@ services:
   consul2:
     image: hashicorp/consul:1.22
     container_name: consul2
-    command: consul agent -server -node=server2 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul3
+    command: consul agent -server -node=server2 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul3 -retry-join=consul4 -retry-join=consul5
     volumes:
       - ./consul:/consul/config
     networks:
@@ -41,7 +41,7 @@ services:
   consul3:
     image: hashicorp/consul:1.22
     container_name: consul3
-    command: consul agent -server -node=server3 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2
+    command: consul agent -server -node=server3 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul4 -retry-join=consul5
     volumes:
       - ./consul:/consul/config
     networks:
@@ -53,66 +53,74 @@ services:
       timeout: 3s
       retries: 15
 
+  consul4:
+    image: hashicorp/consul:1.22
+    container_name: consul4
+    command: consul agent -server -node=server4 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul3 -retry-join=consul5
+    volumes:
+      - ./consul:/consul/config
+    networks:
+      mesh:
+        ipv4_address: 10.0.0.5
+    healthcheck:
+      test: [ "CMD", "consul", "members" ]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  consul5:
+    image: hashicorp/consul:1.22
+    container_name: consul5
+    command: consul agent -server -node=server5 -bootstrap-expect=5 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2 -retry-join=consul3 -retry-join=consul4
+    volumes:
+      - ./consul:/consul/config
+    networks:
+      mesh:
+        ipv4_address: 10.0.0.6
+    healthcheck:
+      test: [ "CMD", "consul", "members" ]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
   service-a-sidecar:
     container_name: service-a-sidecar
     image: hashicorp/consul:1.22
     network_mode: "service:service-a"
-    command: >
-      sh -c "
-        echo '[sidecar-a] discovering healthy Consul server...';
-
-        CONSUL_ADDR='';
-        while [ -z \"$$CONSUL_ADDR\" ]; do
-          for addr in 10.0.0.2:8500 10.0.0.3:8500 10.0.0.4:8500; do
-            if wget -qO- http://$$addr/v1/agent/services 2>/dev/null | grep -q 'service-a-sidecar-proxy'; then
-              CONSUL_ADDR=$$addr;
-              break;
-            fi;
-          done;
-          [ -z \"$$CONSUL_ADDR\" ] && sleep 1;
-        done;
-
-        echo \"[sidecar-a] using Consul at $$CONSUL_ADDR\";
-        export CONSUL_HTTP_ADDR=$$CONSUL_ADDR;
-        consul connect proxy -sidecar-for service-a -log-level warn
-      "
+    restart: on-failure
+    command: sh /sidecar/sidecar.sh service-a
+    volumes:
+      - ./sidecar/:/sidecar/
     depends_on:
       consul1:
         condition: service_healthy
       consul2:
         condition: service_healthy
       consul3:
+        condition: service_healthy
+      consul4:
+        condition: service_healthy
+      consul5:
         condition: service_healthy
 
   service-b-sidecar:
     container_name: service-b-sidecar
     image: hashicorp/consul:1.22
     network_mode: "service:service-b"
-    command: >
-      sh -c "
-        echo '[sidecar-b] discovering healthy Consul server...';
-
-        CONSUL_ADDR='';
-        while [ -z \"$$CONSUL_ADDR\" ]; do
-          for addr in 10.0.0.2:8500 10.0.0.3:8500 10.0.0.4:8500; do
-            if wget -qO- http://$$addr/v1/agent/services 2>/dev/null | grep -q 'service-b-sidecar-proxy'; then
-              CONSUL_ADDR=$$addr;
-              break;
-            fi;
-          done;
-          [ -z \"$$CONSUL_ADDR\" ] && sleep 1;
-        done;
-
-        echo \"[sidecar-b] using Consul at $$CONSUL_ADDR\";
-        export CONSUL_HTTP_ADDR=$$CONSUL_ADDR;
-        consul connect proxy -sidecar-for service-b -log-level warn
-      "
+    restart: on-failure
+    command: sh /sidecar/sidecar.sh service-b
+    volumes:
+      - ./sidecar/:/sidecar/
     depends_on:
       consul1:
         condition: service_healthy
       consul2:
         condition: service_healthy
       consul3:
+        condition: service_healthy
+      consul4:
+        condition: service_healthy
+      consul5:
         condition: service_healthy
 
   service-a:
@@ -130,6 +138,10 @@ services:
         condition: service_healthy
       consul3:
         condition: service_healthy
+      consul4:
+        condition: service_healthy
+      consul5:
+        condition: service_healthy
 
   service-b:
     container_name: service-b
@@ -145,4 +157,8 @@ services:
       consul2:
         condition: service_healthy
       consul3:
+        condition: service_healthy
+      consul4:
+        condition: service_healthy
+      consul5:
         condition: service_healthy
