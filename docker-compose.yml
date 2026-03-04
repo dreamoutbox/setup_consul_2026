@@ -6,19 +6,49 @@ networks:
         - subnet: 10.0.0.0/24
 
 services:
-  consul:
+  consul1:
     image: hashicorp/consul:1.22
-    container_name: consul
-    command: consul agent -dev -client=0.0.0.0 -log-level=warn -ui -config-dir=/consul/config
+    container_name: consul1
+    command: consul agent -server -node=server1 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -ui -config-dir=/consul/config -retry-join=consul2 -retry-join=consul3
     ports:
       - "8500:8500"
     volumes:
-      - ./consul:/consul/config   # loads service-a.json and service-b.json on startup
+      - ./consul:/consul/config
     networks:
       mesh:
         ipv4_address: 10.0.0.2
     healthcheck:
-      test: ["CMD", "consul", "members"]
+      test: [ "CMD", "consul", "members" ]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  consul2:
+    image: hashicorp/consul:1.22
+    container_name: consul2
+    command: consul agent -server -node=server2 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul3
+    volumes:
+      - ./consul:/consul/config
+    networks:
+      mesh:
+        ipv4_address: 10.0.0.3
+    healthcheck:
+      test: [ "CMD", "consul", "members" ]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  consul3:
+    image: hashicorp/consul:1.22
+    container_name: consul3
+    command: consul agent -server -node=server3 -bootstrap-expect=3 -data-dir=/consul/data -client=0.0.0.0 -log-level=warn -config-dir=/consul/config -retry-join=consul1 -retry-join=consul2
+    volumes:
+      - ./consul:/consul/config
+    networks:
+      mesh:
+        ipv4_address: 10.0.0.4
+    healthcheck:
+      test: [ "CMD", "consul", "members" ]
       interval: 2s
       timeout: 3s
       retries: 15
@@ -27,44 +57,62 @@ services:
     container_name: service-a-sidecar
     image: hashicorp/consul:1.22
     network_mode: "service:service-a"
-    environment:
-      CONSUL_HTTP_ADDR: "10.0.0.2:8500"
     command: >
       sh -c "
-        echo '[sidecar-a] waiting for Consul to load service-a registration...';
+        echo '[sidecar-a] discovering healthy Consul server...';
 
-        until wget -qO- http://10.0.0.2:8500/v1/agent/services 2>/dev/null | grep -q 'service-a-sidecar-proxy'; do
-          sleep 1;
+        CONSUL_ADDR='';
+        while [ -z \"$$CONSUL_ADDR\" ]; do
+          for addr in 10.0.0.2:8500 10.0.0.3:8500 10.0.0.4:8500; do
+            if wget -qO- http://$$addr/v1/agent/services 2>/dev/null | grep -q 'service-a-sidecar-proxy'; then
+              CONSUL_ADDR=$$addr;
+              break;
+            fi;
+          done;
+          [ -z \"$$CONSUL_ADDR\" ] && sleep 1;
         done;
 
-        echo '[sidecar-a] starting proxy';
+        echo \"[sidecar-a] using Consul at $$CONSUL_ADDR\";
+        export CONSUL_HTTP_ADDR=$$CONSUL_ADDR;
         consul connect proxy -sidecar-for service-a -log-level warn
       "
     depends_on:
-      consul:
+      consul1:
+        condition: service_healthy
+      consul2:
+        condition: service_healthy
+      consul3:
         condition: service_healthy
 
   service-b-sidecar:
     container_name: service-b-sidecar
     image: hashicorp/consul:1.22
     network_mode: "service:service-b"
-    environment:
-      CONSUL_HTTP_ADDR: "10.0.0.2:8500"
-    # service-b is registered via consul/service-b.json loaded at consul startup —
-    # no need to wait for the Go app to call the API. Start immediately.
     command: >
       sh -c "
-        echo '[sidecar-b] waiting for Consul to load service-b registration...';
+        echo '[sidecar-b] discovering healthy Consul server...';
 
-        until wget -qO- http://10.0.0.2:8500/v1/agent/services 2>/dev/null | grep -q 'service-b-sidecar-proxy'; do
-          sleep 1;
+        CONSUL_ADDR='';
+        while [ -z \"$$CONSUL_ADDR\" ]; do
+          for addr in 10.0.0.2:8500 10.0.0.3:8500 10.0.0.4:8500; do
+            if wget -qO- http://$$addr/v1/agent/services 2>/dev/null | grep -q 'service-b-sidecar-proxy'; then
+              CONSUL_ADDR=$$addr;
+              break;
+            fi;
+          done;
+          [ -z \"$$CONSUL_ADDR\" ] && sleep 1;
         done;
 
-        echo '[sidecar-b] starting proxy';
+        echo \"[sidecar-b] using Consul at $$CONSUL_ADDR\";
+        export CONSUL_HTTP_ADDR=$$CONSUL_ADDR;
         consul connect proxy -sidecar-for service-b -log-level warn
       "
     depends_on:
-      consul:
+      consul1:
+        condition: service_healthy
+      consul2:
+        condition: service_healthy
+      consul3:
         condition: service_healthy
 
   service-a:
@@ -76,7 +124,11 @@ services:
     networks:
       - mesh
     depends_on:
-      consul:
+      consul1:
+        condition: service_healthy
+      consul2:
+        condition: service_healthy
+      consul3:
         condition: service_healthy
 
   service-b:
@@ -88,6 +140,9 @@ services:
     networks:
       - mesh
     depends_on:
-      consul:
+      consul1:
         condition: service_healthy
-        
+      consul2:
+        condition: service_healthy
+      consul3:
+        condition: service_healthy
